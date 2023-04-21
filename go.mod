@@ -1,4 +1,4 @@
-module github.com/ffix/valheimtg
+module github.com/ffix/vhtg
 
 go 1.20
 
