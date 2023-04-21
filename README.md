@@ -52,9 +52,9 @@ echo 'Your Valheim server log message here' | ./vhtg --test <regex_pattern> <out
 
 4. To suppress error messages when no matches are found, add the --quiet flag:
 
-``bash
+```bash
 echo 'Your Valheim server log message here' | ./vhtg --quiet <regex_pattern> <output_pattern>
-``````
+```
 
 ## License
 
