@@ -15,6 +15,10 @@ type messageSender interface {
 	SendMessage(msg string) error
 }
 
+type processor interface {
+	Process()
+}
+
 func main() {
 	logger := logrus.New()
 	logger.SetFormatter(&logrus.TextFormatter{
@@ -42,9 +46,11 @@ func main() {
 
 	eventHandler := eventhandler.New(logger, sender)
 
+	var proc processor
 	if dockerMode {
-		sources.ProcessDocker(eventHandler)
-		return
+		proc = sources.NewDockerProcessor(eventHandler)
+	} else {
+		proc = sources.NewStdinProcessor(eventHandler)
 	}
-	sources.ProcessStdin(eventHandler)
+	proc.Process()
 }

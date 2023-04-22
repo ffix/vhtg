@@ -12,7 +12,15 @@ import (
 	"github.com/docker/docker/client"
 )
 
-func ProcessDocker(handler EventHandler) {
+type DockerProcessor struct {
+	handler EventHandler
+}
+
+func NewDockerProcessor(handler EventHandler) *DockerProcessor {
+	return &DockerProcessor{handler: handler}
+}
+
+func (d *DockerProcessor) Process() {
 	labelKey := os.Args[1]
 
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())

@@ -2,15 +2,31 @@ package sources
 
 import (
 	"bufio"
+	"io"
 	"log"
 	"os"
 )
 
-func ProcessStdin(handler EventHandler) {
-	scanner := bufio.NewScanner(os.Stdin)
+type StdinProcessor struct {
+	input   io.Reader
+	handler EventHandler
+}
+
+func NewStdinProcessor(handler EventHandler) *StdinProcessor {
+	return NewIOProcessor(os.Stdin, handler)
+}
+
+func NewIOProcessor(input io.Reader, handler EventHandler) *StdinProcessor {
+	return &StdinProcessor{
+		input:   input,
+		handler: handler,
+	}
+}
+func (p *StdinProcessor) Process() {
+	scanner := bufio.NewScanner(p.input)
 	for scanner.Scan() {
 		line := scanner.Text()
-		handler.ProcessLine(line)
+		p.handler.ProcessLine(line)
 	}
 
 	if err := scanner.Err(); err != nil {

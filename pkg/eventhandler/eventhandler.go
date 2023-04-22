@@ -84,7 +84,7 @@ func (e *EventHandler) characterConnected(matches map[string]string) string {
 	}
 
 	character := e.characters[characterID]
-	if character != nil && character.Online == true {
+	if character != nil && character.Online {
 		return ""
 	}
 
