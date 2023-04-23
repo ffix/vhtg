@@ -19,6 +19,10 @@ $(APP_NAME)-darwin-arm64: cmd/main.go
 $(APP_NAME)-linux-amd64: cmd/main.go
 	GOOS=linux GOARCH=amd64 $(GO_BUILD) -o $(APP_NAME)-linux-amd64 $(GO_PARAMS)
 
+# Linux (AMD64, static)
+$(APP_NAME)-linux-amd64-static: cmd/main.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO_BUILD) -a -ldflags '-extldflags "-static"' -o $(APP_NAME)-linux-amd64-static $(GO_PARAMS)
+
 # Linux (ARM64)
 $(APP_NAME)-linux-arm64: cmd/main.go
 	GOOS=linux GOARCH=arm64 $(GO_BUILD) -o $(APP_NAME)-linux-arm64 $(GO_PARAMS)
