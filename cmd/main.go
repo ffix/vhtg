@@ -67,7 +67,7 @@ func main() {
 		defer sendQ.WaitAndExit()
 	}
 
-	password := os.Getenv("VALHEIM_SERVER_PASSWORD")
+	password := os.Getenv("SERVER_PASS")
 	eventHandler := eventhandler.New(logger, sendQ, password)
 
 	var proc processor
