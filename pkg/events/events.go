@@ -8,6 +8,7 @@ const (
 	PlayerLoggedInType
 	PlayerLoggedOutType
 	NewServerSessionStartType
+	RandomEventType
 	NoEventType
 )
 
@@ -45,4 +46,8 @@ func PlayerLoggedOutEvent(msg string) Event {
 
 func NewServerSessionStartEvent(msg string) Event {
 	return NewEvent(NewServerSessionStartType, msg)
+}
+
+func RandomEventEvent(msg string) Event {
+	return NewEvent(RandomEventType, msg)
 }

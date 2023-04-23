@@ -30,6 +30,22 @@ type EventHandler struct {
 	password   string
 }
 
+var gameEvents = map[string]string{
+	"army_eikthyr":  "Eikthyr rallies the creatures of the forest",
+	"army_theelder": "The forest is moving...",
+	"army_bonemass": "A foul smell from the swamp",
+	"army_moder":    "A cold wind blows from the mountains",
+	"army_goblin":   "The horde is attacking",
+	"foresttrolls":  "The ground is shaking",
+	"blobs":         "A foul smell from the swamp",
+	"skeletons":     "Skeleton Surprise",
+	"surtlings":     "There's a smell of sulfur in the air",
+	"wolves":        "You are being hunted",
+	"bats":          "You stirred the cauldron",
+	"army_gjall":    "What's up, Gjall!?",
+	"army_seekers":  "They sought you out",
+}
+
 func New(logger logger, notifier notifier, password string) *EventHandler {
 	e := EventHandler{logger: logger, notifier: notifier, password: password}
 	e.initOnlinePlayers()
@@ -159,6 +175,14 @@ func (e *EventHandler) playerDisconnected(matches map[string]string) events.Even
 
 }
 
+func (e *EventHandler) randomEvent(matches map[string]string) events.Event {
+	gameEventDescription, ok := gameEvents[matches["event"]]
+	if ok {
+		return events.RandomEventEvent(gameEventDescription)
+	}
+	return events.RandomEventEvent("Unknown game event started...")
+}
+
 // func (e *EventHandler) ProcessLine(line string, eventTime *time.Time) {
 func (e *EventHandler) ProcessLine(line string, eventTime *time.Time) {
 	logEvents := []LogEvent{
@@ -182,6 +206,10 @@ func (e *EventHandler) ProcessLine(line string, eventTime *time.Time) {
 		{
 			Pattern: `Destroying abandoned non persistent zdo -{0,1}\d+:\d+ owner (?P<id>-{0,1}\d+)`,
 			Handler: e.playerDisconnected,
+		},
+		{
+			Pattern: `Random event set:(?P<event>\w+)`,
+			Handler: e.randomEvent,
 		},
 	}
 
