@@ -1,5 +1,9 @@
 package sources
 
+import (
+	"time"
+)
+
 type EventHandler interface {
-	ProcessLine(string)
+	ProcessLine(string, *time.Time)
 }

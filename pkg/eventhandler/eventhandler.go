@@ -6,9 +6,12 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/ffix/vhtg/pkg/events"
 )
 
-type LogEventHandler func(map[string]string) string
+type LogEventHandler func(map[string]string) events.Event
 type LogEvent struct {
 	Pattern string
 	Handler LogEventHandler
@@ -20,13 +23,15 @@ type Character struct {
 }
 
 type EventHandler struct {
+	up         bool
 	characters map[int]*Character
 	logger     logger
 	notifier   notifier
+	password   string
 }
 
-func New(logger logger, notifier notifier) *EventHandler {
-	e := EventHandler{logger: logger, notifier: notifier}
+func New(logger logger, notifier notifier, password string) *EventHandler {
+	e := EventHandler{logger: logger, notifier: notifier, password: password}
 	e.initOnlinePlayers()
 	return &e
 }
@@ -45,7 +50,7 @@ func (e *EventHandler) currentlyOnline() []string {
 	return online
 }
 
-func (e *EventHandler) currentlyOnlineString(exclude string) string {
+func (e *EventHandler) currentlyOnlineString(exclude string, empty string) string {
 	online := e.currentlyOnline()
 	if exclude != "" {
 		var tmp []string
@@ -60,32 +65,36 @@ func (e *EventHandler) currentlyOnlineString(exclude string) string {
 
 	joined := strings.Join(online, ", ")
 	if joined == "" {
-		return " They are the only player online."
+		return fmt.Sprintf(" %s", empty)
 	}
 	return fmt.Sprintf(" Currently online players: %s.", joined)
 
 }
 
-func (e *EventHandler) dungeonDBStartHandler(_ map[string]string) string {
+func (e *EventHandler) dungeonDBStartHandler(_ map[string]string) events.Event {
 	e.initOnlinePlayers()
-	return "The server has started."
+	if e.up {
+		return events.NoEvent()
+	}
+	e.up = true
+	return events.ServerStartEvent("The server has started.")
 
 }
 
-func (e *EventHandler) characterConnected(matches map[string]string) string {
+func (e *EventHandler) characterConnected(matches map[string]string) events.Event {
 	characterID, err := parseStringIDToInt(matches["id"])
 	if err != nil {
-		return ""
+		return events.NoEvent()
 	}
 
 	if characterID == 0 {
 		// A Player has died
-		return ""
+		return events.NoEvent()
 	}
 
 	character := e.characters[characterID]
 	if character != nil && character.Online {
-		return ""
+		return events.NoEvent()
 	}
 
 	character = &Character{
@@ -95,98 +104,73 @@ func (e *EventHandler) characterConnected(matches map[string]string) string {
 
 	e.characters[characterID] = character
 
-	return fmt.Sprintf(
-		"A player named %s has entered the server.%s\n",
-		matches["name"],
-		e.currentlyOnlineString(matches["name"]),
+	return events.PlayerLoggedInEvent(
+		fmt.Sprintf(
+			"A player named %s has entered the server.%s",
+			matches["name"],
+			e.currentlyOnlineString(matches["name"], "They are the only player online."),
+		),
 	)
 
 }
 
-//func (e *EventHandler) charactedDied(matches map[string]string) string {
-//	// don't do anything if character has died
-//	return ""
-//}
-
-//func (e *EventHandler) gotHandshakeHandler(matches map[string]string) string {
-//	// fixme
-//	e.logger.Warn("Not handled")
-//	return ""
-//}
-
-//func (e *EventHandler) peerWrongPasswordHandler(matches map[string]string) {
-//	fmt.Printf("Wrong password from peer %s.\n", matches["peer_id"])
-//
-//}
-
-//func (e *EventHandler) closingSocketHandler(matches map[string]string) string {
-//	// fixme
-//	e.logger.Warn("Not handled")
-//	return ""
-//}
-
-func (e *EventHandler) serverShutDownComplete(_ map[string]string) string {
-	return "The server has stopped."
+func (e *EventHandler) serverShutDownComplete(_ map[string]string) events.Event {
+	if !e.up {
+		return events.NoEvent()
+	}
+	e.up = false
+	return events.ServerStopEvent("The server has stopped.")
 }
 
-func (e *EventHandler) newSessionHandler(matches map[string]string) string {
-	return fmt.Sprintf(
-		"A session with ID %s and join code %s has started.\n",
+func (e *EventHandler) newSessionHandler(matches map[string]string) events.Event {
+	var password string
+	if e.password != "" {
+		password = fmt.Sprintf(" Connect with password: %s.", e.password)
+	}
+	return events.NewServerSessionStartEvent(fmt.Sprintf(
+		"Session ID %s, join code %s active.%s",
 		matches["session"],
 		matches["join_code"],
-	)
+		password,
+	))
 
 }
-func (e *EventHandler) playerDisconnected(matches map[string]string) string {
+func (e *EventHandler) playerDisconnected(matches map[string]string) events.Event {
 	//fmt.Println(matches)
 	characterID, err := parseStringIDToInt(matches["id"])
 	if err != nil {
-		return ""
+		return events.NoEvent()
 	}
 	character, ok := e.characters[characterID]
 	if !ok {
-		return ""
+		return events.NoEvent()
 	}
 
 	if !character.Online {
-		return ""
+		return events.NoEvent()
 	}
 	character.Online = false
 
-	return fmt.Sprintf(
-		"The player %s disconnected.%s\n",
+	return events.PlayerLoggedOutEvent(fmt.Sprintf(
+		"The player %s disconnected.%s",
 		character.Name,
-		e.currentlyOnlineString(character.Name),
-	)
+		e.currentlyOnlineString(character.Name, "They were the only player online."),
+	))
 
 }
 
-func (e *EventHandler) ProcessLine(line string) {
+// func (e *EventHandler) ProcessLine(line string, eventTime *time.Time) {
+func (e *EventHandler) ProcessLine(line string, eventTime *time.Time) {
 	logEvents := []LogEvent{
 		{
 			Pattern: `DungeonDB Start`,
 			Handler: e.dungeonDBStartHandler,
 		},
-		//{
-		//	Pattern: `Got character ZDOID from (?P<name>.+) : (0:0)`,
-		//	Handler: e.charactedDied,
-		//},
 		{
 			Pattern: `Got character ZDOID from (?P<name>[\w.-]+) : (?P<id>-{0,1}\d+):`,
 			Handler: e.characterConnected,
 		},
-		//{
-		//	Pattern: `Got handshake from client (?P<client_id>\d+)`,
-		//	Handler: e.gotHandshakeHandler,
-		//},
-		//{
-		//	Pattern: `Peer (?P<peer_id>\d+)( has wrong password)`,
-		//	Handler: e.peerWrongPasswordHandler,
-		//},
-		//{
-		//	Pattern: `Closing socket (?P<socket_id>[0-9]+)`,
-		//	Handler: e.closingSocketHandler,
-		//},
+
 		{
 			Pattern: `Shutdown complete`,
 			Handler: e.serverShutDownComplete,
@@ -218,15 +202,16 @@ func (e *EventHandler) ProcessLine(line string) {
 
 			e.logger.Debugf("Matched: %s", line)
 
-			message := logEvent.Handler(namedMatches)
+			event := logEvent.Handler(namedMatches)
 
-			if message != "" {
-				e.logger.Info(message)
+			if event.Type != events.NoEventType {
+				e.logger.Info(event.Message)
 				if e.notifier != nil {
-					err := e.notifier.SendMessage(message)
-					if err != nil {
-						e.logger.Warnf("Failed to send a message: %w", err)
+					expiry := time.Now().Add(5 * time.Minute)
+					if eventTime != nil {
+						expiry = eventTime.Add(5 * time.Minute)
 					}
+					e.notifier.AddTask(event, expiry)
 				}
 			}
 			break
@@ -237,7 +222,7 @@ func (e *EventHandler) ProcessLine(line string) {
 func parseStringIDToInt(id string) (int, error) {
 	intID, err := strconv.Atoi(id)
 	if err != nil {
-		return 0, fmt.Errorf("Failed to parse string ID to integer: %w", err)
+		return 0, fmt.Errorf("failed to parse string ID to integer: %w", err)
 	}
 	return intID, nil
 }

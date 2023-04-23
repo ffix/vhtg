@@ -26,7 +26,7 @@ func (p *StdinProcessor) Process() {
 	scanner := bufio.NewScanner(p.input)
 	for scanner.Scan() {
 		line := scanner.Text()
-		p.handler.ProcessLine(line)
+		p.handler.ProcessLine(line, nil)
 	}
 
 	if err := scanner.Err(); err != nil {

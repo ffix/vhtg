@@ -3,6 +3,7 @@ package sources_test
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ffix/vhtg/pkg/sources"
 )
@@ -11,7 +12,7 @@ type MockEventHandler struct {
 	ProcessedLines []string
 }
 
-func (m *MockEventHandler) ProcessLine(line string) {
+func (m *MockEventHandler) ProcessLine(line string, _ *time.Time) {
 	m.ProcessedLines = append(m.ProcessedLines, line)
 }
 

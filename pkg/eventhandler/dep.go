@@ -1,7 +1,13 @@
 package eventhandler
 
+import (
+	"time"
+
+	"github.com/ffix/vhtg/pkg/events"
+)
+
 type notifier interface {
-	SendMessage(msg string) error
+	AddTask(payload events.Event, expiry time.Time)
 }
 
 type logger interface {
