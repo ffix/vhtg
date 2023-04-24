@@ -18,3 +18,8 @@ type logger interface {
 	Infof(format string, args ...interface{})
 	Warnf(format string, args ...interface{})
 }
+
+type stringFinder interface {
+	FindStringSubmatch(s string) []string
+	SubexpNames() []string
+}

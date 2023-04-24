@@ -2,7 +2,6 @@ package eventhandler
 
 import (
 	"fmt"
-	"log"
 	"regexp"
 	"strconv"
 	"strings"
@@ -17,6 +16,11 @@ type LogEvent struct {
 	Handler LogEventHandler
 }
 
+type LogEventCompiled struct {
+	Pattern stringFinder
+	Handler LogEventHandler
+}
+
 type Character struct {
 	Name   string
 	Online bool
@@ -28,6 +32,7 @@ type EventHandler struct {
 	logger     logger
 	notifier   notifier
 	password   string
+	finder     []LogEventCompiled
 }
 
 var gameEvents = map[string]string{
@@ -46,10 +51,51 @@ var gameEvents = map[string]string{
 	"army_seekers":  "They sought you out",
 }
 
-func New(logger logger, notifier notifier, password string) *EventHandler {
+func New(logger logger, notifier notifier, password string) (*EventHandler, error) {
+
 	e := EventHandler{logger: logger, notifier: notifier, password: password}
+
+	logEvents := []LogEvent{
+		{
+			Pattern: `DungeonDB Start`,
+			Handler: e.dungeonDBStartHandler,
+		},
+		{
+			Pattern: `Got character ZDOID from (?P<name>[\w.-]+) : (?P<id>-{0,1}\d+):`,
+			Handler: e.characterConnected,
+		},
+
+		{
+			Pattern: `Shutdown complete`,
+			Handler: e.serverShutDownComplete,
+		},
+		{
+			Pattern: `Session "(?P<session>.+)" with join code (?P<join_code>\d+) and IP (?P<ip>[\d.]+:\d+)`,
+			Handler: e.newSessionHandler,
+		},
+		{
+			Pattern: `Destroying abandoned non persistent zdo -{0,1}\d+:\d+ owner (?P<id>-{0,1}\d+)`,
+			Handler: e.playerDisconnected,
+		},
+		{
+			Pattern: `Random event set:(?P<event>\w+)`,
+			Handler: e.randomEvent,
+		},
+	}
+
+	finder := make([]LogEventCompiled, 0, len(logEvents))
+
+	for _, logEvent := range logEvents {
+		compiledRegex, err := regexp.Compile(logEvent.Pattern)
+		if err != nil {
+			return nil, fmt.Errorf("error compiling regex pattern: %s", err)
+		}
+		finder = append(finder, LogEventCompiled{Pattern: compiledRegex, Handler: logEvent.Handler})
+	}
+
+	e.finder = finder
 	e.initOnlinePlayers()
-	return &e
+	return &e, nil
 }
 
 func (e *EventHandler) initOnlinePlayers() {
@@ -183,46 +229,12 @@ func (e *EventHandler) randomEvent(matches map[string]string) events.Event {
 	return events.RandomEventEvent("Unknown game event started...")
 }
 
-// func (e *EventHandler) ProcessLine(line string, eventTime *time.Time) {
 func (e *EventHandler) ProcessLine(line string, eventTime *time.Time) {
-	logEvents := []LogEvent{
-		{
-			Pattern: `DungeonDB Start`,
-			Handler: e.dungeonDBStartHandler,
-		},
-		{
-			Pattern: `Got character ZDOID from (?P<name>[\w.-]+) : (?P<id>-{0,1}\d+):`,
-			Handler: e.characterConnected,
-		},
-
-		{
-			Pattern: `Shutdown complete`,
-			Handler: e.serverShutDownComplete,
-		},
-		{
-			Pattern: `Session "(?P<session>.+)" with join code (?P<join_code>\d+) and IP (?P<ip>[\d.]+:\d+)`,
-			Handler: e.newSessionHandler,
-		},
-		{
-			Pattern: `Destroying abandoned non persistent zdo -{0,1}\d+:\d+ owner (?P<id>-{0,1}\d+)`,
-			Handler: e.playerDisconnected,
-		},
-		{
-			Pattern: `Random event set:(?P<event>\w+)`,
-			Handler: e.randomEvent,
-		},
-	}
-
-	for _, logEvent := range logEvents {
-		compiledRegex, err := regexp.Compile(logEvent.Pattern)
-		if err != nil {
-			log.Fatalf("Error compiling regex pattern: %s", err)
-		}
-
-		matches := compiledRegex.FindStringSubmatch(line)
+	for _, locator := range e.finder {
+		matches := locator.Pattern.FindStringSubmatch(line)
 		if matches != nil {
 			namedMatches := make(map[string]string)
-			for i, name := range compiledRegex.SubexpNames() {
+			for i, name := range locator.Pattern.SubexpNames() {
 				if i != 0 && name != "" {
 					namedMatches[name] = matches[i]
 				}
@@ -230,7 +242,7 @@ func (e *EventHandler) ProcessLine(line string, eventTime *time.Time) {
 
 			e.logger.Debugf("Matched: %s", line)
 
-			event := logEvent.Handler(namedMatches)
+			event := locator.Handler(namedMatches)
 
 			if event.Type != events.NoEventType {
 				e.logger.Info(event.Message)

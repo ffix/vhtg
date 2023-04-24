@@ -68,7 +68,10 @@ func main() {
 	}
 
 	password := os.Getenv("SERVER_PASS")
-	eventHandler := eventhandler.New(logger, sendQ, password)
+	eventHandler, err := eventhandler.New(logger, sendQ, password)
+	if err != nil {
+		logger.Fatalf("Failed to initialize event handler: %s", err.Error())
+	}
 
 	var proc processor
 	if dockerMode {
