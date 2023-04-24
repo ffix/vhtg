@@ -33,6 +33,7 @@ type EventHandler struct {
 	notifier   notifier
 	password   string
 	finder     []LogEventCompiled
+	joinCode   string
 }
 
 var gameEvents = map[string]string{
@@ -64,7 +65,6 @@ func New(logger logger, notifier notifier, password string) (*EventHandler, erro
 			Pattern: `Got character ZDOID from (?P<name>[\w.-]+) : (?P<id>-{0,1}\d+):`,
 			Handler: e.characterConnected,
 		},
-
 		{
 			Pattern: `Shutdown complete`,
 			Handler: e.serverShutDownComplete,
@@ -185,14 +185,19 @@ func (e *EventHandler) serverShutDownComplete(_ map[string]string) events.Event 
 }
 
 func (e *EventHandler) newSessionHandler(matches map[string]string) events.Event {
+	joinCode := matches["join_code"]
+	if e.joinCode == joinCode {
+		return events.NoEvent()
+	}
 	var password string
 	if e.password != "" {
 		password = fmt.Sprintf(" Connect with password: %s.", e.password)
 	}
+	e.joinCode = joinCode
 	return events.NewServerSessionStartEvent(fmt.Sprintf(
 		"Session ID %s, join code %s active.%s",
 		matches["session"],
-		matches["join_code"],
+		joinCode,
 		password,
 	))
 
