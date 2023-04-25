@@ -9,6 +9,7 @@ const (
 	PlayerLoggedOutType
 	NewServerSessionStartType
 	RandomEventType
+	RestartType
 	NoEventType
 )
 
@@ -50,4 +51,8 @@ func NewServerSessionStartEvent(msg string) Event {
 
 func RandomEventEvent(msg string) Event {
 	return NewEvent(RandomEventType, msg)
+}
+
+func RestartEvent() Event {
+	return NewEvent(RestartType, "The server has been updated - restarting now.")
 }

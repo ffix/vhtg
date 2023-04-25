@@ -81,6 +81,10 @@ func New(logger logger, notifier notifier, password string) (*EventHandler, erro
 			Pattern: `Random event set:(?P<event>\w+)`,
 			Handler: e.randomEvent,
 		},
+		{
+			Pattern: `Valheim Server was updated - restarting`,
+			Handler: e.restartEvent,
+		},
 	}
 
 	finder := make([]LogEventCompiled, 0, len(logEvents))
@@ -232,6 +236,10 @@ func (e *EventHandler) randomEvent(matches map[string]string) events.Event {
 		return events.RandomEventEvent(gameEventDescription)
 	}
 	return events.RandomEventEvent("Unknown game event started...")
+}
+
+func (e *EventHandler) restartEvent(matches map[string]string) events.Event {
+	return events.RestartEvent()
 }
 
 func (e *EventHandler) ProcessLine(line string, eventTime *time.Time) {
